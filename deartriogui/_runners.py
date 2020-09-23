@@ -1,4 +1,5 @@
 import collections
+import functools
 
 import outcome
 import trio
@@ -7,6 +8,7 @@ import threading
 from dearpygui.dearpygui import *
 
 
+# GLOBALS - they must be used because dearpygui does some evil magic with the callbacks.
 _callbacks = collections.deque()
 _callbacks_edit = threading.Lock()
 _callbacks_wait = threading.Event()
@@ -14,10 +16,16 @@ _callbacks_wait = threading.Event()
 _trio_func = None
 
 results: outcome.Outcome = None
+nursery: trio.Nursery = None
 
 
 def run(trio_func):
-    """Starts dearpygui while bound to the lifetime of a trio function."""
+    """
+    Starts dearpygui while bound to the lifetime of a nursery with a trio function running.
+
+    :param trio_func: the trio function to run
+    :return: The results of the function, or None if the window is closed.
+    """
 
     global _trio_func
     _trio_func = trio_func
@@ -28,12 +36,39 @@ def run(trio_func):
         done_callback=_stop_thread,
     )
     start_dearpygui()
-    return results.unwrap()
+    if results is not None:
+        return results.unwrap()
+
+
+def _canceller(arg1, arg2):
+    nursery.cancel_scope.cancel()
+    return False
+
+
+def async_callback(async_func, *args):
+    """
+    Wraps an async function, so that it can be used as a dearpygui callback.
+    The function will be called in deartriogui's window lifetime nursery.
+    `sender` and `data` parameters are forwarded.
+
+    :param async_func: the function to call
+    :param args: args to pass to the function
+    :return: the wrapped callback
+    """
+    @functools.wraps(async_func)
+    def _async_callback(sender, data):
+        nursery.start_soon(async_func, sender, data, *args)
+    return _async_callback
 
 
 async def _run_trio_func(*args, **kwds):
-    async with trio.open_nursery() as nursery:
-        return await _trio_func()
+    global nursery
+    async with trio.open_nursery() as _nursery:
+        nursery = _nursery
+        set_exit_callback(_canceller)
+        result = await _trio_func()
+        set_exit_callback(None)
+        return result
 
 
 def _run_sync_soon_threadsafe(func):

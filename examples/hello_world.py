@@ -4,6 +4,11 @@ import deartriogui
 from dearpygui.dearpygui import *
 
 
+async def subtask(sender, data):
+    print('Hello from', sender, data)
+    await trio.sleep(5)
+    print('Bye!')
+
 async def main():
     log_info('Hello from Async!')
     for x in range(10):
@@ -13,6 +18,7 @@ async def main():
     await trio.sleep(0.5)
     return 'Hello World'
 
+add_button('Start subtask', callback=deartriogui.async_callback(subtask))
 
 show_logger()
 set_log_level(0)
