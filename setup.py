@@ -8,7 +8,7 @@ setup(
     name="deartriogui",
     version=__version__,
     description="Async DearPyGui support using trio guest mode eventloop",
-    url="Project URL (for setup.py metadata)",
+    url="https://github.com/nosklo/deartriogui",
     long_description=LONG_DESC,
     author="Clovis Fabricio Costa",
     author_email="python.nosklo@0sg.net",
